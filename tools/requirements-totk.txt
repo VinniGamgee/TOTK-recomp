@@ -1,0 +1,2 @@
+# Only needed for tools/totk_dump.py --analyze (the inherited NSO reader).
+lz4==4.4.4

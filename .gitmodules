@@ -1,0 +1,3 @@
+[submodule "las-runtime"]
+    path = vendor/las-runtime
+    url = https://github.com/mamcjr/BOTWRecompAndroid.git

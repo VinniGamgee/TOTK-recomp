@@ -1,0 +1,19 @@
+{
+  "title_id": "0100F2C0115B6000",
+  "display_version": "1.4.3",
+  "update_version": 720896,
+  "exefs_sha256": {
+    "main": "e84a90d551fed0824b4b74933b9c6d043c458521363a7cea58b2faca1822dc9e",
+    "main.npdm": "7e0158af046ccaacc5c00ea6236520718213ad668d647925a49afadeda634457",
+    "rtld": "49308064fddb52dfe9140c11a32cc6333a0917546c871967d013dcb076402817",
+    "sdk": "1d187f29784cd0af46e9e123fc2a62c77b3b07c5a39c8633d90d6c80de64e4ad",
+    "subsdk0": "767c35bcd7d23e78f9063c69b638290b8b83f91e839beb10799e6576960179b1"
+  },
+  "source": {
+    "repository": "https://github.com/ly05010419/MacNativeGames",
+    "commit": "ff63a162b35d8b486b941191785d8e957c1f5df2",
+    "path": "games/totk/assets/expected-v1.4.3.json",
+    "blob_sha": "813bd7968b67fb69f279daee532ee97c4182596b"
+  },
+  "runtime_status": "not_ported"
+}

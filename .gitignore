@@ -1,0 +1,28 @@
+# Local game input and generated code never belong in source control.
+/Dump/
+/input/
+/exefs/
+/romfs/
+/extracted/
+/generated*/
+*.nsp
+*.xci
+*.nsz
+*.xcz
+*.nca
+*.keys
+*.bfttf
+# Build products and local reports
+.gradle/
+.cxx/
+build/
+local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+/totk-*-report.json
+__pycache__/
+*.pyc
+.venv/
+venv/

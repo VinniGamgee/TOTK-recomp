@@ -1,0 +1,49 @@
+name: TOTK Android Diagnostics
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test dump validation with synthetic inputs
+        run: python -m unittest discover -s tests -v
+      - name: Test the Android inspector core on the JVM
+        run: |
+          mkdir -p build/inspector-tests
+          javac -d build/inspector-tests \
+            android/totk-inspector/app/src/main/java/com/vinnigamgee/totkrecomp/ModuleInspector.java \
+            android/totk-inspector/app/src/test/java/com/vinnigamgee/totkrecomp/ModuleInspectorTest.java
+          java -cp build/inspector-tests com.vinnigamgee.totkrecomp.ModuleInspectorTest
+      - uses: android-actions/setup-android@v3
+      - name: Install Android platform
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and lint the diagnostic APK (no game data)
+        working-directory: android/totk-inspector
+        run: ./gradlew --no-daemon :app:assembleDebug :app:lintDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TOTK-Recomp-Diagnostic
+          path: android/totk-inspector/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-lint-report
+          path: android/totk-inspector/app/build/reports/lint-results-debug.*
+          if-no-files-found: ignore
