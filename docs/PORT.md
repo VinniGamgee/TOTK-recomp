@@ -1,58 +1,84 @@
-# TOTK 1.4.3: estado do port
+# TOTK 1.4.3: estado experimental
 
-## O que está implementado
+Ainda não há APK jogável nem boot confirmado. O APK distribuído pelo CI continua sendo
+somente o diagnóstico. O overlay de runtime é desenvolvimento em andamento.
 
-- Base LAS/BOTW Android disponível como submódulo fixado em
-  `4572f06716a49207fdcc13d34a45f154644202f3`.
-- Perfil de TOTK `0100F2C0115B6000`, atualização 720896 / 1.4.3. Os hashes vêm de
-  `MacNativeGames@ff63a162b35d8b486b941191785d8e957c1f5df2`,
-  `games/totk/assets/expected-v1.4.3.json`, blob `813bd7968b67fb69f279daee532ee97c4182596b`.
-- Diagnóstico no Android usando Storage Access Framework e leitura sequencial dos arquivos.
-- Diagnóstico em Python e inventário opcional de imports/relocações.
-- CI para testes sem arquivos de jogo, compilação e lint do APK de diagnóstico.
+## Implementação
 
-Não há boot de TOTK implementado ou confirmado. Nenhum dump real foi analisado nesta fase.
-Não houve teste em POCO F5. A execução de BOTW relatada pelo upstream não é uma validação de TOTK.
+`patches/totk143.patch` adapta a base LAS/BOTW Android fixada em
+`4572f06716a49207fdcc13d34a45f154644202f3`. `tools/prepare_runtime.py` aplica a mudança
+em uma cópia separada; o submódulo original permanece intacto.
 
-## Diferenças verificadas no código
+- Identificação de TOTK 1.4.3 e verificação SHA-256 dos três módulos antes da geração.
+- Carregamento de main, sdk e subsdk0, com limites de imagem sem sobreposição.
+- ABI 2 da biblioteca `totkgame`, terceira tabela no dispatch e rebase Android.
+- Geração e fila de compilação dos três módulos, inclusive no builder Android.
+- Patches de BOTW removidos; frame pacing e widescreen com offsets de BOTW desativados.
+- Import sem implementação interrompe explicitamente, em vez de retornar sucesso falso.
+- Sequência proposta de construtores: main, subsdk0, sdk. Ainda não foi executada.
+- Configuração inicial do aplicativo separado; launcher, importação e saves ainda exigem revisão.
 
-| Área da base BOTW | Situação observada | Trabalho necessário para TOTK |
-| --- | --- | --- |
-| `runtime/loader.c` | `loader_load` carrega apenas main e sdk; identificação lista builds de BOTW | Identificar os builds reais e carregar os módulos requeridos por TOTK |
-| `runtime/gamelib.h`, `tools/gamelib_entry.c` | ABI 1 expõe duas tabelas de funções | Revisar ABI, gerador e consumidor juntos para suportar subsdk0 |
-| `runtime/dispatch.c` | Duas tabelas; inicialização, lookup e profiler assumem esse limite | Suportar todas as tabelas, inclusive rebase e reinicialização |
-| `runtime/gamebuild.c`, `android/build_gamelib.sh` | Geram main e sdk, endereços fixos separados por 64 MiB | Medir imagens e reservar layout sem sobreposição; gerar os três módulos |
-| `runtime/main.c` | Construtores/finalizadores referenciam índices específicos de main/sdk | Conferir a sequência de inicialização e finalização do SDK de TOTK |
-| `tools/patches.py` | Patches selecionados por build ID de BOTW | Manter patches de outro jogo fora do caminho de TOTK; criar patches verificados |
-| `runtime/hle/framepace.c`, `widescreen.c` | Condições e offsets específicos de BOTW | Desabilitar no futuro alvo TOTK até portar e validar os hooks |
-| `tools/nso.py`, `runtime/loader.c` | Já tratam DT_RELR e DT_GNU_HASH | Exercitar com os módulos de TOTK, sem assumir equivalência de SDK |
-| `runtime/services`, `runtime/nvn` | Implementações feitas para os jogos anteriores | Conferir imports, ABI, IPC, áudio, NVN e shaders usados por TOTK |
+| Módulo | Base canônica | Funções geradas | Arquivos de código | Instruções não suportadas |
+| --- | --- | ---: | ---: | ---: |
+| main | 0x7000000000 | 228238 | 1464 | 12 |
+| sdk | 0x7004000000 | 40516 | 166 | 1 |
+| subsdk0 | 0x7005000000 | 13936 | 119 | 0 |
 
-A referência MacNativeGames registra três módulos de TOTK 1.4.3, mudanças no SDK,
-relocações RELR e áudio REV15 em `docs/v1.4.3-port.md`. O código Apple executa ARM64
-reescrito e usa Metal. Esta base recompila para C e usa Vulkan: não há substituição direta
-dos binários ou cópia universal de patches entre os dois mecanismos.
+Os contadores são a descoberta do gerador, não uma prova de cobertura ou correção.
+As instruções não suportadas viram traps: podem interromper o jogo se forem alcançadas.
 
-## Próximo insumo e próximos marcos
+## Evidência local com ExeFS real
 
-1. Analisar os cinco arquivos do ExeFS 1.4.3: `main`, `main.npdm`, `rtld`, `sdk`, `subsdk0`.
-   O JSON Android fornece identidade e tamanho das imagens; ele não contém os módulos.
-2. Fazer o inventário completo com `tools/totk_dump.py --analyze`. Para modificar e validar
-   a geração de código, será necessário acesso local ao ExeFS; os hashes sozinhos não bastam.
-3. Implementar suporte consistente aos três módulos, layout de memória e nova ABI de biblioteca;
-   testar carregamento, relocações e construtores antes do primeiro `nnMain`.
-4. Integrar o alvo TOTK ao APK do runtime e obter logs reais de inicialização.
-5. Corrigir os caminhos de sistema e gráficos encontrados nos testes. Confirmar imagem,
-   áudio, controles, salvamento e carregamento no dispositivo.
+Os cinco arquivos enviados correspondem ao perfil de referência 1.4.3.
+A geração C terminou para os três módulos (282690 funções; 1749 chunks).
+O teste `tests/loader_probe.c`, usando o loader de produção adaptado, carregou os três
+módulos e conferiu **517515 relocações relativas** contra pares produzidos pelo leitor
+Python independente. O harness usa stubs para imports: não valida serviços, dispatch,
+construtores ou instruções do jogo. Foram compilados objetos AArch64 Linux de uma amostra
+(`*_000.c` de cada módulo), usando Clang via Zig 0.14.1. Isso não é compilação Android NDK,
+nem validação de todos os arquivos, link da biblioteca ou build do APK do runtime.
 
-O RomFS extraído deve corresponder à base mais atualização cumulativa 1.4.3. O diagnóstico
-atual só registra a presença de uma pasta com esse nome, quando a pasta-pai é selecionada;
-não testa completude, hashes ou correspondência do RomFS.
+Os seis testes Python de diagnóstico passaram. O patch aplica sobre a revisão fixada.
+Nenhum ExeFS, RomFS, par de relocação ou código derivado do jogo integra o repositório ou CI.
 
-## Verificações desta entrega
+## Bloqueios conhecidos
 
-- Testes Python: inputs sintéticos válidos, corrupção, módulo ausente, NSO truncado,
-  segmento fora do arquivo e seleção da pasta-pai.
-- Teste Java do núcleo usado pelo APK: NSO/NPDM, hash incorreto, truncamento, limites e cancelamento.
-- Workflow: `assembleDebug` e `lintDebug` do APK de diagnóstico.
-- Interface e acesso a provedores de arquivos ainda precisam de teste em um Android real.
+O inventário encontrou oito imports de main sem implementação na base:
+`glslcCompile`, `glslcCompilePreSpecialized`, `glslcCompileSpecialized`, `glslcFinalize`,
+`glslcGetDefaultOptions`, `glslcGetVersion`, `glslcInitialize`, `glslcSetAllocator`.
+Resolver nomes dos outros imports não comprova compatibilidade de comportamento.
+
+Ainda faltam validar as 13 instruções não suportadas, compilar/linkar todo o código com NDK,
+portar as diferenças de SDK/IPC/áudio (incluindo REV15), confirmar a ABI NVN e implementar
+os caminhos de shaders. A seleção NVN herdada ainda não foi portada. O frontend conserva
+fluxos de BOTW (saves, DLC, textos e heurísticas de RomFS): não deve ser distribuído como
+um port pronto. A contagem de arquivos RomFS no overlay é apenas referência, sem garantia
+de completude. Nenhum RomFS foi analisado e nenhum teste em POCO F5 foi realizado.
+
+## Reproduzir localmente
+
+Python 3.11 ou superior, Git e ferramentas de compilação compatíveis são necessários.
+
+```sh
+git submodule update --init
+python -m pip install -r tools/requirements-generator.txt
+python tools/prepare_runtime.py
+python tools/generate_totk.py /caminho/exefs
+python tools/relative_pairs.py /caminho/exefs work/relative-pairs.bin
+clang -O1 -Iwork/runtime/runtime tests/loader_probe.c work/runtime/runtime/loader.c -o work/loader_probe
+work/loader_probe /caminho/exefs work/relative-pairs.bin
+```
+
+O teste do loader requer Linux x86-64, endereços fixos livres e Clang recente (builtins
+vetoriais do upstream; GCC não é suficiente). Não executa código ARM64. O arquivo de pares
+é criado exclusivamente: remova-o explicitamente antes de repetir. O preparador recusa
+sobrescrever uma pasta existente. Os arquivos locais ficam em `work/`, ignorada pelo Git.
+A geração pode consumir vários GB e não produz um APK automaticamente.
+
+## Referência
+
+O perfil vem de `MacNativeGames@ff63a162b35d8b486b941191785d8e957c1f5df2`,
+`games/totk/assets/expected-v1.4.3.json` (blob `813bd7968b67fb69f279daee532ee97c4182596b`).
+A sequência de inicialização é baseada no loader TOTK dessa referência, com licença MIT
+em `third_party/`. O runtime Apple usa ARM64 reescrito e Metal; esta base gera C e usa Vulkan.
+A referência não comprova funcionamento deste port Android.

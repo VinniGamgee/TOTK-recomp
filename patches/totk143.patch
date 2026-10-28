@@ -1,0 +1,1046 @@
+diff --git a/android/botwrecompandroid/app/build.gradle.kts b/android/botwrecompandroid/app/build.gradle.kts
+index c603d53..d321467 100644
+--- a/android/botwrecompandroid/app/build.gradle.kts
++++ b/android/botwrecompandroid/app/build.gradle.kts
+@@ -18,11 +18,11 @@ android {
+     ndkVersion = "30.0.16248370"
+ 
+     defaultConfig {
+-        applicationId = "com.botwrecomp.android"
++        applicationId = "com.vinnigamgee.totkrecomp.runtime"
+         minSdk = 30
+         targetSdk = 36
+-        versionCode = 15
+-        versionName = "0.2.1-beta"
++        versionCode = 1
++        versionName = "0.1.0-experimental"
+         ndk {
+             abiFilters += "arm64-v8a"
+         }
+diff --git a/android/botwrecompandroid/app/src/main/cpp/CMakeLists.txt b/android/botwrecompandroid/app/src/main/cpp/CMakeLists.txt
+index 180be38..52f36e3 100644
+--- a/android/botwrecompandroid/app/src/main/cpp/CMakeLists.txt
++++ b/android/botwrecompandroid/app/src/main/cpp/CMakeLists.txt
+@@ -1,5 +1,5 @@
+ # libmain.so: the BOTWRecompAndroid runtime for Android, with the
+-# Vulkan backend and the ImGui UI. The game code is not in it: botwgame.so, generated with gen.py --dyn-base and built
++# Vulkan backend and the ImGui UI. The game code is not in it: totkgame.so, generated with gen.py --dyn-base and built
+ # from the player's own game files, is loaded at run time (docs/las/ANDROID-PORT.md).
+ cmake_minimum_required(VERSION 3.22)
+ project(botwrecompandroid C CXX)
+@@ -14,7 +14,7 @@ if(NOT BOTW_GEN_DIR)
+     message(FATAL_ERROR "BOTW_GEN_DIR (the Gradle build's generated files: smaa_hlsl.inc) is not set")
+ endif()
+ 
+-include(${R}/android/gamelib_id.cmake)  # (GAMELIB_ID: the same as botwgame.so's, android/gamelib)
++include(${R}/android/gamelib_id.cmake)  # (GAMELIB_ID: the same as totkgame.so's, android/gamelib)
+ message(STATUS "GAMELIB_ID ${GAMELIB_ID}")
+ 
+ add_subdirectory(${R}/third_party/libadrenotools ${CMAKE_BINARY_DIR}/adrenotools)
+diff --git a/android/botwrecompandroid/app/src/main/java/com/botwrecompandroid/BOTWRecompAndroidActivity.java b/android/botwrecompandroid/app/src/main/java/com/botwrecompandroid/BOTWRecompAndroidActivity.java
+index d20ce8b..668c0f5 100644
+--- a/android/botwrecompandroid/app/src/main/java/com/botwrecompandroid/BOTWRecompAndroidActivity.java
++++ b/android/botwrecompandroid/app/src/main/java/com/botwrecompandroid/BOTWRecompAndroidActivity.java
+@@ -4,7 +4,7 @@
+ // - the Vulkan driver: the first driver in <external files>/drivers (a .so, or an adrenotools .zip: Turnip), copied to
+ //   internal storage (dlopen refuses external storage) and named in LARECOMP_VK_DRIVER; none there = the system's;
+ // - LARECOMP_NATIVE_LIB_DIR: where adrenotools finds its hook libraries;
+-// - the game code (botwgame.so + botwgame.so.id, built from the player's own game files: android/build_gamelib.sh) from
++// - the game code (totkgame.so + totkgame.so.id, built from the player's own game files: android/build_gamelib.sh) from
+ //   <external files>/extracted to <internal files>/res, where runtime/gamelib.c looks for it next to "the executable".
+ // - the game code's builder (docs/las/ANDROID-PORT.md, Fase 6): assets/gen (the generator, its Python's standard library,
+ //   zig's headers) unpacked to <internal files>/gen once per app version, named in LARECOMP_GEN_DIR; its programs
+@@ -100,8 +100,8 @@ public class BOTWRecompAndroidActivity extends SDLActivity {
+             File res = new File(getFilesDir(), "res");
+             copyAssets("res", res);
+             File games = new File(getExternalFilesDir(null), "extracted");
+-            copyIfChanged(new File(games, "botwgame.so"), new File(res, "botwgame.so"));
+-            copyIfChanged(new File(games, "botwgame.so.id"), new File(res, "botwgame.so.id"));
++            copyIfChanged(new File(games, "totkgame.so"), new File(res, "totkgame.so"));
++            copyIfChanged(new File(games, "totkgame.so.id"), new File(res, "totkgame.so.id"));
+             setenv("LARECOMP_NATIVE_LIB_DIR", getApplicationInfo().nativeLibraryDir);
+             setenv("LARECOMP_LAST_EXIT", lastExit());
+             File gen = new File(getFilesDir(), "gen");
+@@ -130,9 +130,9 @@ public class BOTWRecompAndroidActivity extends SDLActivity {
+                 if (name != null && (!recents || KEEP_FROM_RECENTS.contains(name))) setenv(name, value);
+                 // (debugging) the game code built on the phone, out where adb can read it: a crash's host addresses
+                 if (env.contains("LARECOMP_EXPORT_GAMELIB")) {
+-                    File lib = new File(res, "botwgame.so");
++                    File lib = new File(res, "totkgame.so");
+                     if (lib.exists()) try (InputStream in = new FileInputStream(lib)) {
+-                        copy(in, new File(getExternalFilesDir(null), "botwgame-export.so"));
++                        copy(in, new File(getExternalFilesDir(null), "totkgame-export.so"));
+                     }
+                 }
+             }
+@@ -778,18 +778,18 @@ public class BOTWRecompAndroidActivity extends SDLActivity {
+     // levels below it (as runtime/ui/launcher.mm find_game)
+     private Doc exefs, romfs;
+     private boolean packages;
+-    // A game code built already (botwgame.so with its .id, and .game: the game version it's for - a package made on a
++    // A game code built already (totkgame.so with its .id, and .game: the game version it's for - a package made on a
+     // PC from the same files), used instead of building it on the phone when it's for this version and this app
+     private Doc preLib, preId, preGame;
+ 
+     private void find(Uri tree, Doc dir, int depth) {
+         if (depth > 4 || (exefs != null && romfs != null)) return;
+         List<Doc> kids = children(tree, dir.id);
+-        if (preLib == null && named(kids, "botwgame.so") != null && named(kids, "botwgame.so.id") != null &&
+-            named(kids, "botwgame.so.game") != null) {
+-            preLib = named(kids, "botwgame.so");
+-            preId = named(kids, "botwgame.so.id");
+-            preGame = named(kids, "botwgame.so.game");
++        if (preLib == null && named(kids, "totkgame.so") != null && named(kids, "totkgame.so.id") != null &&
++            named(kids, "totkgame.so.game") != null) {
++            preLib = named(kids, "totkgame.so");
++            preId = named(kids, "totkgame.so.id");
++            preGame = named(kids, "totkgame.so.game");
+         }
+         if (exefs == null && named(kids, "main") != null && named(kids, "main.npdm") != null) exefs = dir;
+         Doc rc = named(kids, "Pack");
+@@ -955,8 +955,8 @@ public class BOTWRecompAndroidActivity extends SDLActivity {
+             copyTree(tree, exefs, new File(games, "exefs"));
+             if (preLib != null && Integer.toString(version).equals(readText(tree, preGame).trim())) {
+                 // (the native side checks its id against this app's and builds it on the phone when they differ)
+-                copyDoc(tree, preId, new File(games, "botwgame.so.id"));
+-                copyDoc(tree, preLib, new File(games, "botwgame.so"));
++                copyDoc(tree, preId, new File(games, "totkgame.so.id"));
++                copyDoc(tree, preLib, new File(games, "totkgame.so"));
+                 Log.i(TAG, "game code from the picked folder: " + preLib.size + " bytes");
+             }
+             nativeImportProgress(copied, total);
+diff --git a/android/build_gamelib.sh b/android/build_gamelib.sh
+index b189fd2..4880bac 100644
+--- a/android/build_gamelib.sh
++++ b/android/build_gamelib.sh
+@@ -1,7 +1,7 @@
+ #!/bin/bash
+-# android/build_gamelib.sh <exefs folder>: botwgame.so for Android from the player's own game files - the game code
++# android/build_gamelib.sh <exefs folder>: totkgame.so for Android from the player's own game files - the game code
+ # generated with gen.py --dyn-base (into generated-android-dyn/, skipped when it's there; delete it to redo) and built
+-# with the NDK against the app's libmain.so (build the app first). Output: android/out/botwgame.so and botwgame.so.id,
++# with the NDK against the app's libmain.so (build the app first). Output: android/out/totkgame.so and totkgame.so.id,
+ # for <data root>/extracted/ on the device (android/push_game.sh), where the app picks them up.
+ set -euo pipefail
+ cd "$(dirname "$0")/.."
+@@ -21,14 +21,15 @@ case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) EXE=.exe; PY=tools/venv/Scripts/pyth
+ LIBMAIN=$(ls -t "$R"/android/botwrecompandroid/app/build/intermediates/cxx/*/*/obj/arm64-v8a/libmain.so 2>/dev/null | head -1 || true)
+ [ -n "$LIBMAIN" ] || { echo "build the app first (android/botwrecompandroid: gradlew assembleDebug)"; exit 1; }
+ 
+-if [ ! -f "$GEN/main/main_table.c" ] || [ ! -f "$GEN/sdk/sdk_table.c" ]; then
++if [ ! -f "$GEN/main/main_table.c" ] || [ ! -f "$GEN/sdk/sdk_table.c" ] || [ ! -f "$GEN/subsdk0/subsdk0_table.c" ]; then
+     (cd tools && "../$PY" gen.py sdk "$EXEFS/sdk" 0x7004000000 "$GEN/sdk" --hle ../runtime/hle/hle_symbols.txt --simd asm --dyn-base)
+     (cd tools && "../$PY" gen.py main "$EXEFS/main" 0x7000000000 "$GEN/main" --simd asm --dyn-base)
++    (cd tools && "../$PY" gen.py subsdk0 "$EXEFS/subsdk0" 0x7005000000 "$GEN/subsdk0" --simd asm --dyn-base)
+ fi
+ 
+ # the files whose largest function has over 15000 labels: compiled at -O0 (android/gamelib/CMakeLists.txt, heavy.txt).
+ # v1.6.0: 4 files, 15k-34k labels - each took clang hours at -O1/-O2; the largest under it (14.5k) compiles normally
+-(cd "$GEN" && for f in main/*.c sdk/*.c; do
++(cd "$GEN" && for f in main/*.c sdk/*.c subsdk0/*.c; do
+     awk -v f="$f" '/^[a-zA-Z].* f_[0-9a-f]+\(.*\) \{$/ {n = 0} /^L_[0-9a-f]+:/ {if (++n > 15000) {print f; exit}}' "$f"
+ done) > "$GEN/heavy.txt"
+ echo "heavy (at -O0): $(tr '\n' ' ' < "$GEN/heavy.txt")"
+@@ -38,7 +39,7 @@ echo "heavy (at -O0): $(tr '\n' ' ' < "$GEN/heavy.txt")"
+     -DCMAKE_BUILD_TYPE=Release -DLAS_GEN="$GEN" -DLAS_LIBMAIN="$LIBMAIN"
+ "$CMAKE_DIR/cmake$EXE" --build "$W" -j"$(nproc 2>/dev/null || echo 8)"
+ mkdir -p "$OUT"
+-cp "$W/botwgame.so" "$W/botwgame.so.id" "$OUT/"
++cp "$W/totkgame.so" "$W/totkgame.so.id" "$OUT/"
+ # (debug info off: ~580 MB -> ~110 MB to push and load; the symbols stay, for simpleperf and crash reports)
+-"$NDK/toolchains/llvm/prebuilt/$(ls "$NDK/toolchains/llvm/prebuilt" | head -1)/bin/llvm-strip$EXE" --strip-debug "$OUT/botwgame.so"
+-ls -la "$OUT/botwgame.so" "$OUT/botwgame.so.id"
++"$NDK/toolchains/llvm/prebuilt/$(ls "$NDK/toolchains/llvm/prebuilt" | head -1)/bin/llvm-strip$EXE" --strip-debug "$OUT/totkgame.so"
++ls -la "$OUT/totkgame.so" "$OUT/totkgame.so.id"
+diff --git a/android/gamelib/CMakeLists.txt b/android/gamelib/CMakeLists.txt
+index a1a8d94..30eaec1 100644
+--- a/android/gamelib/CMakeLists.txt
++++ b/android/gamelib/CMakeLists.txt
+@@ -1,16 +1,16 @@
+-# botwgame.so for Android: the game code generated from the player's own game files with gen.py --dyn-base
++# totkgame.so for Android: the game code generated from the player's own game files with gen.py --dyn-base
+ # (android/build_gamelib.sh runs the generator and this build). The runtime functions it calls are libmain.so's: it
+ # names libmain.so as a dependency, which is how Android's linker finds them when the runtime loads it (dlopen).
+ #   LAS_GEN: the generated code (sdk/, main/)   LAS_LIBMAIN: the app's libmain.so (to link against)
+ cmake_minimum_required(VERSION 3.22)
+-project(botwgame C)
++project(totkgame C)
+ 
+ set(R ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+ get_filename_component(R ${R} ABSOLUTE)
+ include(${R}/android/gamelib_id.cmake)
+ message(STATUS "GAMELIB_ID ${GAMELIB_ID}")
+ 
+-file(GLOB GEN_SRC ${LAS_GEN}/main/*.c ${LAS_GEN}/sdk/*.c)
++file(GLOB GEN_SRC ${LAS_GEN}/main/*.c ${LAS_GEN}/sdk/*.c ${LAS_GEN}/subsdk0/*.c)
+ list(LENGTH GEN_SRC n)
+ if(n EQUAL 0)
+     message(FATAL_ERROR "no generated code in ${LAS_GEN}")
+@@ -22,9 +22,9 @@ endif()
+ add_library(main SHARED IMPORTED)
+ set_target_properties(main PROPERTIES IMPORTED_LOCATION ${LAS_LIBMAIN} IMPORTED_NO_SONAME FALSE)
+ 
+-add_library(botwgame SHARED ${GEN_SRC} ${R}/tools/gamelib_entry.c)
+-target_include_directories(botwgame PRIVATE ${R}/runtime)
+-target_compile_options(botwgame PRIVATE ${GAMELIB_FLAGS})
++add_library(totkgame SHARED ${GEN_SRC} ${R}/tools/gamelib_entry.c)
++target_include_directories(totkgame PRIVATE ${R}/runtime)
++target_compile_options(totkgame PRIVATE ${GAMELIB_FLAGS})
+ set_source_files_properties(${R}/tools/gamelib_entry.c PROPERTIES COMPILE_DEFINITIONS "GAMELIB_ID=\"${GAMELIB_ID}\"")
+ # Files with a gigantic function (heavy.txt, android/build_gamelib.sh: over 15,000 labels - a jump table's function
+ # gets one per instruction) at -O0: clang spent hours on each at -O1 / -O2 (v1.6.0), seconds at -O0
+@@ -34,6 +34,6 @@ if(EXISTS ${LAS_GEN}/heavy.txt)
+         set_source_files_properties(${LAS_GEN}/${f} PROPERTIES COMPILE_OPTIONS "-O0")
+     endforeach()
+ endif()
+-target_link_libraries(botwgame PRIVATE main)
+-set_target_properties(botwgame PROPERTIES PREFIX "")   # botwgame.so (runtime/gamelib.h GAMELIB_NAME)
+-file(WRITE ${CMAKE_BINARY_DIR}/botwgame.so.id "${GAMELIB_ID}\n")
++target_link_libraries(totkgame PRIVATE main)
++set_target_properties(totkgame PROPERTIES PREFIX "")   # totkgame.so (runtime/gamelib.h GAMELIB_NAME)
++file(WRITE ${CMAKE_BINARY_DIR}/totkgame.so.id "${GAMELIB_ID}\n")
+diff --git a/android/gamelib_id.cmake b/android/gamelib_id.cmake
+index 5f216f6..a9b8566 100644
+--- a/android/gamelib_id.cmake
++++ b/android/gamelib_id.cmake
+@@ -1,6 +1,6 @@
+ # GAMELIB_ID for Android (runtime/gamelib.h): a hash of the generator,
+ # the headers the generated code is compiled against, and its flags. Included by the app's CMakeLists.txt
+-# (libmain.so checks it) and android/gamelib/CMakeLists.txt (botwgame.so carries it), so the two always agree.
++# (libmain.so checks it) and android/gamelib/CMakeLists.txt (totkgame.so carries it), so the two always agree.
+ # Needs R (the repository). Sets GAMELIB_ID and GAMELIB_FLAGS (the generated code's compile flags, as a list).
+ # -O2 for the developer-built Android game library:
+ set(GAMELIB_FLAGS -O2 -fno-strict-aliasing -Wno-return-type -Wno-unused-label -fvisibility=hidden -fPIC)
+diff --git a/runtime/dispatch.c b/runtime/dispatch.c
+index 1729eb5..b49749e 100644
+--- a/runtime/dispatch.c
++++ b/runtime/dispatch.c
+@@ -14,7 +14,7 @@
+ #include "kernel.h"
+ 
+ typedef struct { const uint64_t *addrs; const GuestFn *fns; uint64_t count, lo, hi; } FnTable;
+-static FnTable tables[2];
++static FnTable tables[3];
+ 
+ // HLE stubs live at fake addresses HLE_BASE + 16*i
+ #define MAX_HLE 4096
+@@ -74,9 +74,9 @@ static int unimpl_counts[MAX_HLE];
+ static void hle_unimplemented(Cpu *c) {
+     int i = (int)((unimpl_pc - HLE_BASE) / 16);
+     if (unimpl_counts[i]++ < 3)
+-        LOG("[hle] UNIMPLEMENTED %s (x0=%llx x1=%llx lr=%llx) -> returning 0\n", hle_slots[i].name, c->x[0],
++        LOG("[hle] UNIMPLEMENTED %s (x0=%llx x1=%llx lr=%llx) -> stopping\n", hle_slots[i].name, c->x[0],
+             c->x[1], c->x[30]);
+-    c->x[0] = 0;
++    FATAL("unimplemented imported function: %s\n", hle_slots[i].name);
+ }
+ 
+ uint64_t guest_sym(const char *name) {
+@@ -117,29 +117,31 @@ void *hle_alloc(uint64_t size) {
+     return (void *)a;
+ }
+ 
+-void dispatch_init(void) {  // (after gamelib_load)
++void dispatch_init(void) {
+     const GameLibTables *g = gamelib_tables();
+-    uint64_t nm = *g->main_count, ns = *g->sdk_count;
++    const uint64_t *src[3] = {g->main_addrs, g->sdk_addrs, g->subsdk0_addrs};
++    const GuestFn *fns[3] = {g->main_fns, g->sdk_fns, g->subsdk0_fns};
++    const uint64_t counts[3] = {*g->main_count, *g->sdk_count, *g->subsdk0_count};
++#ifdef __ANDROID__
++    static uint64_t *moved[3];
++#endif
++    for (int t = 0; t < 3; t++) {
++        uint64_t count = counts[t];
++        const uint64_t *addresses = src[t];
+ #ifdef __ANDROID__
+-    // The library lists the desktop window's addresses (gen.py --dyn-base): moved to where the window is (rt.h).
+-    static uint64_t *moved[2];
+-    const uint64_t *src[2] = {g->main_addrs, g->sdk_addrs}, cnt[2] = {nm, ns};
+-    for (int t = 0; t < 2; t++) {
+         free(moved[t]);
+-        moved[t] = malloc(cnt[t] * sizeof *moved[t]);
+-        if (!moved[t]) FATAL("out of memory\n");
+-        for (uint64_t i = 0; i < cnt[t]; i++) moved[t][i] = src[t][i] - GUEST_CANON + GUEST_LO;
+-    }
+-    tables[0] = (FnTable){moved[0], g->main_fns, nm, moved[0][0], moved[0][nm - 1]};
+-    tables[1] = (FnTable){moved[1], g->sdk_fns, ns, moved[1][0], moved[1][ns - 1]};
+-#else
+-    tables[0] = (FnTable){g->main_addrs, g->main_fns, nm, g->main_addrs[0], g->main_addrs[nm - 1]};
+-    tables[1] = (FnTable){g->sdk_addrs, g->sdk_fns, ns, g->sdk_addrs[0], g->sdk_addrs[ns - 1]};
++        moved[t] = count ? malloc(count * sizeof *moved[t]) : NULL;
++        if (count && !moved[t]) FATAL("out of memory\n");
++        for (uint64_t i = 0; i < count; i++) moved[t][i] = src[t][i] - GUEST_CANON + GUEST_LO;
++        addresses = moved[t];
+ #endif
++        tables[t] = (FnTable){addresses, fns[t], count, count ? addresses[0] : 1,
++                             count ? addresses[count - 1] : 0};
++    }
+ }
+ 
+ GuestFn dispatch_lookup(uint64_t addr) {
+-    for (int t = 0; t < 2; t++) {
++    for (int t = 0; t < 3; t++) {
+         FnTable *ft = &tables[t];
+         if (addr < ft->lo || addr > ft->hi) continue;
+         uint64_t lo = 0, hi = ft->count;
+@@ -254,10 +256,10 @@ const char *rt_host_fn_name(uint64_t pc, uint64_t *offset) {
+     static uint64_t n;
+     static __thread char name[32];
+     if (!byhost) {
+-        uint64_t total = tables[0].count + tables[1].count, k = 0;
++        uint64_t total = tables[0].count + tables[1].count + tables[2].count, k = 0;
+         uint64_t (*v)[2] = malloc(total * sizeof *v);
+         if (!v) return NULL;
+-        for (int t = 0; t < 2; t++)
++        for (int t = 0; t < 3; t++)
+             for (uint64_t i = 0; i < tables[t].count; i++) {
+                 v[k][0] = (uint64_t)(uintptr_t)tables[t].fns[i];
+                 v[k++][1] = tables[t].addrs[i];
+@@ -279,7 +281,7 @@ const char *rt_host_fn_name(uint64_t pc, uint64_t *offset) {
+ }
+ 
+ static const char *host_sym(uint64_t pc, uint64_t *offset) {
+-    // (game functions first: they live in botwgame.dll, which the OS lookup can only name as a whole)
++    // (game functions first: they live in totkgame.dll, which the OS lookup can only name as a whole)
+     const char *s = rt_host_fn_name(pc, offset);
+     return s ? s : plat_symbol(pc, offset);
+ }
+diff --git a/runtime/gamebuild.c b/runtime/gamebuild.c
+index d91a6bf..8f06820 100644
+--- a/runtime/gamebuild.c
++++ b/runtime/gamebuild.c
+@@ -481,8 +481,8 @@ static PlatProc start_compile(const Tools *t, const Unit *u) {
+ // What the objects in .gamebuild were compiled from: this builder (GAMELIB_ID) and the game code's build ids
+ static void build_stamp(const char *game_dir, char *out, size_t n) {
+     int k = snprintf(out, n, "%s", GAMELIB_ID);
+-    static const char *const mods[2] = {"main", "sdk"};
+-    for (int m = 0; m < 2 && k > 0 && (size_t)k < n; m++) {
++    static const char *const mods[3] = {"main", "sdk", "subsdk0"};
++    for (int m = 0; m < 3 && k > 0 && (size_t)k < n; m++) {
+         char p[1100];
+         uint8_t id[8] = {0};
+         snprintf(p, sizeof p, "%s" SEP "exefs" SEP "%s", game_dir, mods[m]);
+@@ -621,10 +621,10 @@ bool gamebuild_run(const char *game_dir, const GameBuildOpts *o, char *why, size
+         t.cc, t.zig ? " cc" : "", o->jobs);
+ 
+     // 1. the generator, both modules at once; their finished files are compiled while it goes on
+-    Gen gens[2] = {{.name = "main"}, {.name = "sdk"}};
+-    static const char *const base[2] = {"0x7000000000", "0x7004000000"};
++    Gen gens[3] = {{.name = "main"}, {.name = "sdk"}, {.name = "subsdk0"}};
++    static const char *const base[3] = {"0x7000000000", "0x7004000000", "0x7005000000"};
+     bool ok = true;
+-    for (int i = 0; i < 2 && ok; i++) {
++    for (int i = 0; i < 3 && ok; i++) {
+         Gen *g = &gens[i];
+         g->exit = -1;
+         snprintf(g->log, sizeof g->log, "%s" SEP "gen_%s.log", work, g->name);
+@@ -648,8 +648,8 @@ bool gamebuild_run(const char *game_dir, const GameBuildOpts *o, char *why, size
+     }
+ 
+     Units units = {0};
+-    int queued[2] = {0, 0};  // chunk files of each module put in units so far
+-    bool tables[2] = {false, false};
++    int queued[3] = {0};  // chunk files of each module put in units so far
++    bool tables[3] = {false};
+     int next = 0, jobs = o->jobs < 1 ? 1 : o->jobs > 64 ? 64 : o->jobs;
+     struct { PlatProc p; int unit; } run[64];
+     int nrun = 0;
+@@ -663,7 +663,7 @@ bool gamebuild_run(const char *game_dir, const GameBuildOpts *o, char *why, size
+         bool gens_done = true;
+         double gen_frac = 0;
+         unsigned long long written = 0;
+-        for (int i = 0; i < 2; i++) {
++        for (int i = 0; i < 3; i++) {
+             Gen *g = &gens[i];
+             if (g->exit < 0) {
+                 read_gen_log(g);
+@@ -694,7 +694,7 @@ bool gamebuild_run(const char *game_dir, const GameBuildOpts *o, char *why, size
+                 add_unit(&units, src, work, stem);
+                 tables[i] = true;
+             }
+-            gen_frac += g->exit == 0 ? 0.5 : g->n ? 0.5 * (double)g->ci / (double)g->n : 0;
++            gen_frac += g->exit == 0 ? 1.0 / 3.0 : g->n ? (1.0 / 3.0) * (double)g->ci / (double)g->n : 0;
+         }
+         if (!ok) break;
+         for (int k = 0; k < units.n; k++) written += units.u[k].bytes;
+@@ -763,7 +763,7 @@ bool gamebuild_run(const char *game_dir, const GameBuildOpts *o, char *why, size
+         sleep_ms(50);
+     }
+     for (int k = 0; k < nrun; k++) stop(run[k].p);  // (a failure: the rest is of no use - the failure shows at once)
+-    for (int i = 0; i < 2; i++)
++    for (int i = 0; i < 3; i++)
+         if (gens[i].p && gens[i].exit < 0) stop(gens[i].p);
+ 
+     // 2. link
+diff --git a/runtime/gamebuild.h b/runtime/gamebuild.h
+index 4f9df38..eec792e 100644
+--- a/runtime/gamebuild.h
++++ b/runtime/gamebuild.h
+@@ -1,6 +1,6 @@
+ // Builds the game code library (runtime/gamelib.h) on the player's machine, from their own game files: the generator
+ // (tools/gen.py; shipped frozen as botwgen/) turns exefs/main and exefs/sdk into C, the bundled compiler (zig/) builds
+-// that into <game_dir>/botwgame.*. The C and the objects are deleted afterwards.
++// that into <game_dir>/totkgame.*. The C and the objects are deleted afterwards.
+ #pragma once
+ #include <stdbool.h>
+ #include <stddef.h>
+diff --git a/runtime/gamelib.c b/runtime/gamelib.c
+index 646aa26..9d0f79d 100644
+--- a/runtime/gamelib.c
++++ b/runtime/gamelib.c
+@@ -95,7 +95,7 @@ static int candidates(const char *game_dir, char out[3][1100]) {
+ #ifdef __ANDROID__
+     {   // 1.0.0's next to "the executable" (the activity copies it there at start; one set up just now, here)
+         char exe[1024];
+-        if (game_dir && rt_game_dir_version(game_dir) == 100 && plat_exe_path(exe, sizeof exe) && strrchr(exe, '/')) {
++        if (game_dir && rt_game_dir_version(game_dir) == 143 && plat_exe_path(exe, sizeof exe) && strrchr(exe, '/')) {
+             *strrchr(exe, '/') = 0;
+             snprintf(own, sizeof own, "%s/%s", exe, GAMELIB_NAME);
+             sync_from_game_dir(game_dir, own);
+@@ -135,8 +135,8 @@ static const GameLibTables *open_lib(const char *path) {
+         return NULL;  // (left loaded: nothing of it runs)
+     }
+ #ifdef __ANDROID__
+-    // its addresses follow the guest window wherever it is (gen.py --dyn-base: botwgame_gb)
+-    void (*set_base)(uint64_t) = (void (*)(uint64_t))dlsym(h, "botwgame_set_guest_base");
++    // its addresses follow the guest window wherever it is (gen.py --dyn-base: totkgame_gb)
++    void (*set_base)(uint64_t) = (void (*)(uint64_t))dlsym(h, "totkgame_set_guest_base");
+     if (!set_base) {
+         snprintf(g_error, sizeof g_error, "%s: not built for Android (gen.py --dyn-base)", path);
+         return NULL;
+diff --git a/runtime/gamelib.h b/runtime/gamelib.h
+index dea3792..3a5b3cc 100644
+--- a/runtime/gamelib.h
++++ b/runtime/gamelib.h
+@@ -9,13 +9,13 @@
+ #include "cpu.h"
+ 
+ #if defined(_WIN32)
+-#define GAMELIB_NAME "botwgame.dll"
++#define GAMELIB_NAME "totkgame.dll"
+ #define GAMELIB_EXPORT __declspec(dllexport)
+ #elif defined(__APPLE__)
+-#define GAMELIB_NAME "botwgame.dylib"
++#define GAMELIB_NAME "totkgame.dylib"
+ #define GAMELIB_EXPORT __attribute__((visibility("default")))
+ #else
+-#define GAMELIB_NAME "botwgame.so"
++#define GAMELIB_NAME "totkgame.so"
+ #define GAMELIB_EXPORT __attribute__((visibility("default")))
+ #endif
+ 
+@@ -24,7 +24,7 @@
+ #ifndef GAMELIB_ID
+ #define GAMELIB_ID "dev"
+ #endif
+-#define GAMELIB_ABI 1
++#define GAMELIB_ABI 2
+ 
+ typedef struct {
+     uint32_t abi;    // GAMELIB_ABI
+@@ -32,11 +32,14 @@ typedef struct {
+     const uint64_t *main_addrs, *sdk_addrs;  // sorted guest addresses
+     const GuestFn *main_fns, *sdk_fns;       // the functions at them
+     const uint64_t *main_count, *sdk_count;
++    const uint64_t *subsdk0_addrs;
++    const GuestFn *subsdk0_fns;
++    const uint64_t *subsdk0_count;
+ } GameLibTables;
+ 
+ // The library's one exported function (tools/gamelib_entry.c).
+ typedef const GameLibTables *(*GameLibEntry)(void);
+-#define GAMELIB_ENTRY "botwgame_tables"
++#define GAMELIB_ENTRY "totkgame_tables"
+ 
+ #ifdef __cplusplus
+ extern "C" {
+diff --git a/runtime/hle/framepace.c b/runtime/hle/framepace.c
+index 08897a1..44c3beb 100644
+--- a/runtime/hle/framepace.c
++++ b/runtime/hle/framepace.c
+@@ -52,11 +52,7 @@ static int env_int(const char *name, int def) {
+     return e && *e ? atoi(e) : def;
+ }
+ 
+-bool framepace_on(void) {
+-    static int on = -1;
+-    if (on < 0) on = g_game_version >= 182 && env_int("LARECOMP_FRAMEPACE", 1) != 0;
+-    return on;
+-}
++bool framepace_on(void) { return false; } // BOTW offsets are not valid for TOTK.
+ 
+ // ------------------------------------------------------------------ the frame rate
+ // The menus: the game is paused (pause menu, map), or the title screen's menu is up (screen 1 in the UI screen
+@@ -69,11 +65,11 @@ static bool in_menu(void) {
+ }
+ 
+ // (widescreen.c: the HUD stays in place in the menus)
+-bool framepace_in_menu(void) { return g_game_version >= 182 && in_menu(); }
++bool framepace_in_menu(void) { return false; }
+ 
+ // (widescreen.c) the title screen's menu is up - screen 1 in the UI screen manager, as in_menu - and the game isn't paused
+ bool framepace_on_title(void) {
+-    if (g_game_version < 182) return false;
++    if (g_game_version == 143 || g_game_version < 182) return false;
+     uint64_t holder = *(uint64_t *)(uintptr_t)UI_SCREENS;
+     uint64_t mgr = holder ? *(uint64_t *)(uintptr_t)holder : 0;
+     bool on = mgr && !*(uint32_t *)(uintptr_t)PAUSE_STATE && VF(uint32_t, mgr, 0x28) > 1 && VF(uint64_t, mgr, 0x30) &&
+diff --git a/runtime/hle/widescreen.c b/runtime/hle/widescreen.c
+index 70540fe..fe4f56d 100644
+--- a/runtime/hle/widescreen.c
++++ b/runtime/hle/widescreen.c
+@@ -35,6 +35,7 @@ static bool g_allowed;  // (widescreen_set_allowed: tests)
+ static volatile bool g_hooked;  // (the game code calls rt_persp_update: built with the hooks)
+ static int g_boot_aspect = -1;  // (the setting this boot of the game started with)
+ bool widescreen_allowed(void) {
++    if (g_game_version == 143) return false; // No verified TOTK camera hooks yet.
+     // 1.8.2 once its game code shows the hooks (one built before them would stretch the image: it stays 16:9), with
+     // the setting the game started with: the layouts' camera takes its aspect once, early on (a copy of a projection
+     // built on the stack, never rebuilt), so a change applies when the game starts again (a reboot: widescreen_reset)
+diff --git a/runtime/kernel.c b/runtime/kernel.c
+index e800268..0e620a0 100644
+--- a/runtime/kernel.c
++++ b/runtime/kernel.c
+@@ -596,7 +596,7 @@ static uint32_t svc_wait_process_wide_key(uint64_t mutex, uint64_t key, uint32_t
+     // A wait that timed out returns without the mutex in BOTW 1.8.2's SDK, as on the console: user mode takes it
+     // again (InternalConditionVariableImplByHorizon::TimedWait calls Enter on 0xea01). Taken here too, the thread then
+     // waited for the mutex it held, and every thread after it (SavageWindRecomp). The older SDKs run as before.
+-    if (r != R_OK && !(r == R_TIMEOUT && g_game_version >= 182)) {
++    if (r != R_OK && !(r == R_TIMEOUT && (g_game_version == 143 || g_game_version >= 182))) {
+         // timed out / cancelled: still must reacquire the mutex
+         if (!mutex_acquire_or_mark(mutex, tag)) {
+             t->wait_kind = WAIT_MUTEX;
+diff --git a/runtime/loader.c b/runtime/loader.c
+index 03f19d5..eeee131 100644
+--- a/runtime/loader.c
++++ b/runtime/loader.c
+@@ -69,10 +69,7 @@ static uint64_t gnu_hash_nsyms(uint64_t h) {
+ // The game's version for main's build id (the NSO header's bytes 0x40-0x47; 0: unknown) - also runtime/gamebuild.c
+ int game_version_of_build(const uint8_t id[8]) {
+     static const struct { uint8_t id[8]; int version; } builds[] = {
+-        {{0x20, 0x94, 0xf1, 0x52, 0x83, 0x66, 0x83, 0xa3}, 100},
+-        {{0x8e, 0x99, 0x78, 0xd5, 0x0b, 0xdd, 0x20, 0xb4}, 160},
+-        {{0xde, 0x0b, 0x6a, 0xc4, 0xef, 0xc1, 0xdd, 0xa7}, 182},
+-        {{0xcd, 0x57, 0xb2, 0x3f, 0xa4, 0xbb, 0xad, 0x65}, 190},  // (the update v1114112: SDK 21.4.1, NVN 55.15)
++        {{0x27, 0x71, 0x78, 0xb7, 0xdb, 0xa1, 0xb6, 0xd4}, 143},
+     };
+     for (unsigned i = 0; i < sizeof builds / sizeof *builds; i++)
+         if (!memcmp(id, builds[i].id, 8)) return builds[i].version;
+@@ -82,7 +79,7 @@ int game_version_of_build(const uint8_t id[8]) {
+ static void load_nso(Module *m, const char *path, uint64_t base) {
+     size_t len;
+     uint8_t *raw = read_file(path, &len);
+-    if (!raw || memcmp(raw, "NSO0", 4)) FATAL("cannot load %s\n", path);
++    if (!raw || len < 0x100 || memcmp(raw, "NSO0", 4)) FATAL("cannot load %s\n", path);
+     if (base == MAIN_BASE) {  // (the game's version: g_game_version)
+         g_game_version = game_version_of_build(raw + 0x40);
+         LOG("[loader] main build %02x%02x%02x%02x...: game version %d\n", raw[0x40], raw[0x41], raw[0x42], raw[0x43],
+@@ -93,6 +90,8 @@ static void load_nso(Module *m, const char *path, uint64_t base) {
+     for (int i = 0; i < 3; i++) memcpy(seg[i], raw + 0x10 + i * 0x10, 12);
+     uint32_t bss = *(uint32_t *)(raw + 0x3C);
+     uint64_t size = (seg[2][1] + seg[2][2] + bss + 0x3FFF) & ~0x3FFFull;
++    uint64_t limit = base == MAIN_BASE ? SDK_BASE : base == SDK_BASE ? SUBSDK0_BASE : HLE_BASE;
++    if (base + size > limit) FATAL("module %s overlaps its next reserved region\n", m->name);
+     plat_commit(base, size);  // inside the guest window: zero-filled, read/write
+     for (int i = 0; i < 3; i++) {
+         uint32_t csize = *(uint32_t *)(raw + 0x60 + i * 4);
+@@ -249,8 +248,8 @@ static void relocate(Module *m) {
+ 
+ void loader_load(const char *exefs) {
+     char path[1024];
+-    const struct { const char *name; uint64_t base; } mods[] = {{"main", MAIN_BASE}, {"sdk", SDK_BASE}};  // (not static: Android's bases move)
+-    for (unsigned i = 0; i < 2; i++) {
++    const struct { const char *name; uint64_t base; } mods[] = {{"main", MAIN_BASE}, {"sdk", SDK_BASE}, {"subsdk0", SUBSDK0_BASE}};  // (not static: Android's bases move)
++    for (unsigned i = 0; i < 3; i++) {
+         Module *m = &g_modules[g_nmodules++];
+         m->name = mods[i].name;
+         snprintf(path, sizeof path, "%s/%s", exefs, m->name);
+diff --git a/runtime/main.c b/runtime/main.c
+index 05a6a6b..a24aeec 100644
+--- a/runtime/main.c
++++ b/runtime/main.c
+@@ -33,13 +33,17 @@ static void module_init(Cpu *c, Module *m) {
+     else run_array(c, m->init_array, m->init_array_sz);
+ }
+ 
+-static void rtld_init_sdk(Cpu *c) { module_init(c, &g_modules[1]); }
+-static void rtld_init_main(Cpu *c) { module_init(c, &g_modules[0]); }
++static void rtld_init_sdk(Cpu *c) { (void)c; LOG("[boot] modules linked\n"); }
++static void rtld_init_main(Cpu *c) {
++    // TOTK rtld order: main, multimedia, SDK, after libc/SDK startup.
++    module_init(c, &g_modules[0]);
++    module_init(c, &g_modules[2]);
++    module_init(c, &g_modules[1]);
++}
+ 
+ // Newer SDKs (BOTW 1.8.2's) also take x4, called if nnMain returns, before nninitFinalizeSdkModule and nnosQuickExit:
+ // the finalizers of what x3 set up - DT_FINI, else the fini_array backwards (SavageWindRecomp, MIT)
+-static void rtld_fini_main(Cpu *c) {
+-    Module *m = &g_modules[0];
++static void module_fini(Cpu *c, Module *m) {
+     LOG("nnMain returned: fini %s\n", m->name);
+     if (m->fini) { guest_call(c, m->fini); return; }
+     for (uint64_t i = m->fini_array_sz / 8; i-- > 0;) {
+@@ -48,6 +52,12 @@ static void rtld_fini_main(Cpu *c) {
+     }
+ }
+ 
++static void rtld_fini_main(Cpu *c) {
++    module_fini(c, &g_modules[1]);
++    module_fini(c, &g_modules[2]);
++    module_fini(c, &g_modules[0]);
++}
++
+ static void call_sym(Cpu *c, const char *name, bool required) {
+     uint64_t a = loader_find_symbol(name);
+     if (!a) {
+diff --git a/runtime/paths.c b/runtime/paths.c
+index 4b5532c..72ea486 100644
+--- a/runtime/paths.c
++++ b/runtime/paths.c
+@@ -80,22 +80,12 @@ bool rt_dev_mode(void) { return g_dev; }
+ 
+ // ---- game versions (paths.h): 1.0.0 in the data root, 1.6.0 / 1.8.2 / 1.9.0 in its v160 / v182 / v190
+ static char g_main[1024];   // 1.0.0's data root, which the others' folders are in
+-static int g_version = 100;  // whose folder the data root is
++static int g_version = 143;  // whose folder the data root is
+ 
+ #define VERSION_FILE "game_version.txt"
+ 
+ // The one the start screen chose (game_version.txt in the main root; none = 1.0.0)
+-static int selected_version(const char *main_root) {
+-    char p[1100];
+-    snprintf(p, sizeof p, "%s" SEP VERSION_FILE, main_root);
+-    FILE *f = fopen(p, "rb");
+-    int v = 100;
+-    if (f) {
+-        if (fscanf(f, "%d", &v) != 1) v = 100;
+-        fclose(f);
+-    }
+-    return v == 160 || v == 182 || v == 190 ? v : 100;
+-}
++static int selected_version(const char *main_root) { (void)main_root; return 143; }
+ 
+ static bool copy_file(const char *from, const char *to) {
+     FILE *in = fopen(from, "rb");
+@@ -129,8 +119,8 @@ static void version_seed(void) {
+ int rt_game_version(void) { return g_version; }
+ 
+ bool rt_version_root(int v, char *out, size_t n) {
+-    if (v == 100) return (size_t)snprintf(out, n, "%s", g_main) < n;
+-    if (v == 160 || v == 182 || v == 190) return (size_t)snprintf(out, n, "%s" SEP "v%d", g_main, v) < n;
++    if (v == 143) return (size_t)snprintf(out, n, "%s", g_main) < n;
++
+     return false;
+ }
+ 
+@@ -151,8 +141,8 @@ int rt_game_dir_version(const char *game_dir) {
+         if (abs) snprintf(got, sizeof got, "%s", game_dir);
+         else snprintf(got, sizeof got, "%s" SEP "%s", g_root, game_dir);
+     }
+-    static const int versions[] = {100, 160, 182, 190};
+-    for (int i = 0; i < 4; i++) {
++    static const int versions[] = {143};
++    for (int i = 0; i < 1; i++) {
+         char r[1024], want[1100];
+         if (!rt_version_root(versions[i], r, sizeof r)) continue;
+         snprintf(want, sizeof want, "%s" SEP "extracted", r);
+@@ -203,7 +193,7 @@ void rt_paths_init(void) {
+     if (!(env && *env)) {  // the game version the start screen chose: 1.6.0 / 1.8.2 in their own folder
+         int v = selected_version(root);
+         size_t l = strlen(root);
+-        if (v != 100) snprintf(root + l, sizeof root - l, SEP "v%d", v);
++        if (v != 143) snprintf(root + l, sizeof root - l, SEP "v%d", v);
+     }
+     mkdirs(root);
+     char msg[1400];
+@@ -222,12 +212,8 @@ void rt_paths_init(void) {
+     const char *base = strrchr(g_root, '/'), *bs = strrchr(g_root, '\\');
+     if (bs > base) base = bs;
+     snprintf(g_main, sizeof g_main, "%s", g_root);
+-    g_version = 100;
+-    if (base && (!strcmp(base + 1, "v160") || !strcmp(base + 1, "v182") || !strcmp(base + 1, "v190"))) {
+-        g_version = atoi(base + 2);
+-        snprintf(g_main, sizeof g_main, "%.*s", (int)(base - g_root), g_root);
+-        version_seed();
+-    }
++    g_version = 143;
++
+     // (tests: screenshots and debug frames go to build/, which a new data root doesn't have yet)
+     if (getenv("LARECOMP_DEBUG_FRAME") || getenv("LARECOMP_SHOT_AT") || getenv("LARECOMP_SCREENSHOT_EVERY") ||
+         getenv("LARECOMP_SAVE_MSL") || getenv("LARECOMP_LAUNCHER_SHOT"))
+diff --git a/runtime/romfs_build.c b/runtime/romfs_build.c
+index 6c7de2a..dac45b7 100644
+--- a/runtime/romfs_build.c
++++ b/runtime/romfs_build.c
+@@ -137,9 +137,8 @@ uint64_t romfs_dir_bytes(const char *dir) {
+ // DLC's mixed in; it froze at the tower's movie) and a romfs one file short (issue #23: the game stopped loading
+ // Actor/ActorInfo.product.sbyml) - both set up fine before, then failed in the game.
+ static const struct { int version, files; const char *name; } k_whole[] = {
+-    {100, 39678, "1.0.0"}, {160, 41052, "1.6.0"}, {182, 41056, "1.8.2"}, {190, 41062, "1.9.0"}};
+-static const char *const k_key_files[] = {"Actor/ActorInfo.product.sbyml", "Pack/Bootup.pack", "Pack/TitleBG.pack",
+-                                         "System/Version.txt"};
++    {143, 304243, "1.4.3"}}; // Reference count, not a content hash or completeness guarantee.
++static const char *const k_key_files[] = {"System/Version.txt"};
+ 
+ int romfs_check_set(int version, const char *const *paths, int n, const char *version_txt, char *why, size_t why_size) {
+     const char *name = NULL;
+diff --git a/runtime/rt.h b/runtime/rt.h
+index 04de47f..96c6654 100644
+--- a/runtime/rt.h
++++ b/runtime/rt.h
+@@ -27,6 +27,7 @@ extern uint64_t g_guest_lo;
+ #define GUEST_HI     (GUEST_LO + 0x320000000ull)
+ #define MAIN_BASE    (GUEST_LO + 0x0000000000ull)
+ #define SDK_BASE     (GUEST_LO + 0x0004000000ull)
++#define SUBSDK0_BASE (GUEST_LO + 0x0005000000ull)
+ #define HLE_BASE     (GUEST_LO + 0x0080000000ull)
+ #define HLE_SIZE     0x0000100000ull
+ #define TLS_BASE     (GUEST_LO + 0x0090000000ull)
+@@ -42,6 +43,7 @@ extern uint64_t g_guest_lo;
+ #define GUEST_HI     0x7320000000ull
+ #define MAIN_BASE    0x7000000000ull
+ #define SDK_BASE     0x7004000000ull
++#define SUBSDK0_BASE 0x7005000000ull
+ #define HLE_BASE     0x7080000000ull   // fake addresses for host-implemented functions
+ #define HLE_SIZE     0x0000100000ull
+ #define TLS_BASE     0x7090000000ull
+diff --git a/runtime/services/am.c b/runtime/services/am.c
+index 7660e62..1224aef 100644
+--- a/runtime/services/am.c
++++ b/runtime/services/am.c
+@@ -180,7 +180,7 @@ static void application_functions(Service *s, IpcReq *req, IpcResp *resp) {
+         break;
+     }
+     case 23:  // GetDisplayVersion
+-        memcpy(resp->data, g_game_version == 190 ? "1.9.0" : g_game_version == 182 ? "1.8.2" : g_game_version == 160 ? "1.6.0" : "1.0.0", 6);
++        memcpy(resp->data, g_game_version == 143 ? "1.4.3" : g_game_version == 190 ? "1.9.0" : g_game_version == 182 ? "1.8.2" : g_game_version == 160 ? "1.6.0" : "1.0.0", 6);
+         resp_size(resp, 0x10);
+         break;
+     case 40: OUT(uint8_t, 0) = 0; resp_size(resp, 1); break;  // NotifyRunning
+diff --git a/runtime/services/misc.c b/runtime/services/misc.c
+index a7711cd..e5e5233 100644
+--- a/runtime/services/misc.c
++++ b/runtime/services/misc.c
+@@ -43,7 +43,7 @@ const char *fs_aoc_image(void);
+ SERVICE("aoc:u", aoc_u) {
+     (void)s;
+     static const uint32_t packs[] = {1, 2};
+-    uint32_t have = fs_aoc_image() && g_game_version > 100 ? 2 : 0;  // (1.0.0 came before the DLC)
++    uint32_t have = 0; // TOTK has no BOTW expansion pass.  // (1.0.0 came before the DLC)
+     switch (req->cmd) {
+     case 2: OUT(uint32_t, 0) = have; resp_size(resp, 4); break;  // CountAddOnContent
+     case 3: {  // ListAddOnContent(offset, count): the packs' indices into the B buffer, how many
+diff --git a/runtime/ui/launcher.mm b/runtime/ui/launcher.mm
+index 2128391..50c14ae 100644
+--- a/runtime/ui/launcher.mm
++++ b/runtime/ui/launcher.mm
+@@ -98,8 +98,8 @@ static void save_png(id<MTLTexture> tex, const char *path) {
+ // The start screen asks GitHub for the project's releases once per launch (a background curl, which macOS and
+ // Windows 10+ ship) and offers the best one if it outranks this build: any v1.0.0+ above every beta, betas by
+ // number; other tags (the alpha_* ones) are ignored. Offline / no curl / anything unexpected: nothing is shown.
+-#define RELEASES_URL "https://api.github.com/repos/mamcjr/BOTWRecompAndroid/releases?per_page=100"
+-#define RELEASE_PAGE "https://github.com/mamcjr/BOTWRecompAndroid/releases/tag/"
++#define RELEASES_URL "https://api.github.com/repos/VinniGamgee/TOTK-recomp/releases?per_page=100"
++#define RELEASE_PAGE "https://github.com/VinniGamgee/TOTK-recomp/releases/tag/"
+ 
+ static long long tag_rank(const std::string &t) {
+     int n, a, b, c;
+@@ -186,14 +186,14 @@ static int main_version(const std::string &main_path) {
+     return n == 8 ? game_version_of_build(id) : 0;
+ }
+ 
+-static const char *version_name(int v) { return v == 190 ? "1.9.0" : v == 182 ? "1.8.2" : v == 160 ? "1.6.0" : "1.0.0"; }
++static const char *version_name(int v) { return v == 143 ? "1.4.3" : "unknown"; }
+ 
+ // The copied game files alone ("" = there), without the game code built from them: of a version this app runs, the
+ // one whose folder root is (runtime/paths.h)
+ static std::string check_copied_files(const std::string &root) {
+     int v = main_version(root + "/exefs/main"), want = rt_game_dir_version(root.c_str());
+     if (v < 0) return "No game files";
+-    if (!v || (want && v != want)) return "Wrong game version (needs v1.0.0, v1.6.0, v1.8.2 or v1.9.0)";
++    if (!v || (want && v != want)) return "Wrong game version (needs TOTK v1.4.3)";
+     // (the game reads its data through romfs.bin alone: on Android it's built straight from the picked folder, and romfs/
+     // holds only the movies, opened by path)
+     if (!file_exists(root + "/romfs.bin")) return "Game data missing";
+@@ -210,7 +210,7 @@ static std::string check_game_files(const std::string &root) {
+ }
+ 
+ // The game versions this app runs, and which of them are set up (their copied files there; checked again once a second)
+-static const int k_versions[] = {100, 160, 182, 190};
++static const int k_versions[] = {143};
+ enum { N_VERSIONS = 4 };
+ static bool version_set_up(int i) {
+     static bool set_up[N_VERSIONS];
+@@ -271,7 +271,7 @@ static void set_failure(int k) {
+         "Choose the folder that holds the game files.",
+         "Choose the folder that holds the game files.",
+         "Make sure there's about 30 GB free and try again.",
+-        "BOTWRecompAndroid runs versions 1.0.0, 1.6.0, 1.8.2 and 1.9.0 of the game.",
++        "Experimental TOTK runtime: version 1.4.3 only. Boot and rendering are not yet verified.",
+         "Some files are missing. Choose the folder again; if it happens again, dump the game again.",
+         "Try again: the build goes on where it stopped. If it keeps failing, report it on GitHub with the log."};
+     if (k >= 1 && k <= 6) set_job(head[k], true, hint[k]);
+@@ -1503,7 +1503,7 @@ static void prelaunch_tab(float sc) {
+     heading("Game files");
+     ImGui::Text(tr("Game version: %s"), version_name(rt_game_version()));
+     ImGui::PushTextWrapPos(0);
+-    ImGui::TextDisabled("%s", tr("Versions 1.0.0, 1.6.0, 1.8.2 and 1.9.0 can be set up side by side, each with its own saves."));
++    ImGui::TextDisabled("%s", tr("Experimental target: TOTK 1.4.3. Keep a separate copy of your saves."));
+     ImGui::PopTextWrapPos();
+     if (ImGui::Button(tr("Versions and setup"))) g_open_files = true;
+     static double gb = -1;
+@@ -1896,7 +1896,7 @@ extern "C" void launcher_run(const char *root) {
+             ImGui::SetCursorPos(ImVec2(x0, 120 * s));
+             ImGui::PushFont(g_font_title);
+             if (page == MAIN) {  // gold to orange, shadowed (not behind the Settings / Game Files windows)
+-                const char *t = "BOTWRecompAndroid";
++                const char *t = "TOTK Recomp (experimental)";
+                 ImVec2 p = ImGui::GetCursorScreenPos();
+                 text_fx(ImGui::GetWindowDrawList(), ImGui::GetFont(), ImGui::GetFontSize(), p, IM_COL32(255, 232, 120, 255),
+                         IM_COL32(255, 138, 48, 255), t, 3 * s);
+@@ -2110,8 +2110,8 @@ extern "C" void launcher_run(const char *root) {
+                     dl->AddLine(ImVec2(x, cy), ImVec2(x + u * 0.35f, cy + u * 0.35f), g, fs * 0.11f);
+                     dl->AddLine(ImVec2(x + u * 0.35f, cy + u * 0.35f), ImVec2(x + u, cy - u * 0.4f), g, fs * 0.11f);
+                 };
+-                std::string src_d = tr("The folder with your own game folders (exefs/romfs) of The Legend of Zelda: Breath of "
+-                                       "the Wild for Nintendo Switch: version 1.0.0, 1.6.0, 1.8.2 or 1.9.0 (the last two in "
++                std::string src_d = tr("The folder with your own TOTK 1.4.3 game folders (exefs/romfs). Runtime is experimental. "
++                                       "Before testing, keep a backup of your saves. (Interface inherited from "
+                                        "Brazilian Portuguese). The version is told from the files, and each one is set up in a place of "
+                                        "its own, beside the others. The game isn't included with BOTWRecompAndroid.");
+                 if (!src.empty()) src_d += std::string(tr("\n\nChosen: ")) + src;
+diff --git a/tools/gamelib_entry.c b/tools/gamelib_entry.c
+index a22bb09..8d633e2 100644
+--- a/tools/gamelib_entry.c
++++ b/tools/gamelib_entry.c
+@@ -4,9 +4,12 @@
+ 
+ extern const uint64_t main_fn_addrs[], sdk_fn_addrs[], main_fn_count, sdk_fn_count;
+ extern const GuestFn main_fn_ptrs[], sdk_fn_ptrs[];
++extern const uint64_t subsdk0_fn_addrs[], subsdk0_fn_count;
++extern const GuestFn subsdk0_fn_ptrs[];
+ 
+-GAMELIB_EXPORT const GameLibTables *botwgame_tables(void) {
++GAMELIB_EXPORT const GameLibTables *totkgame_tables(void) {
+     static const GameLibTables t = {GAMELIB_ABI,  GAMELIB_ID,   main_fn_addrs,  sdk_fn_addrs,
+-                                    main_fn_ptrs, sdk_fn_ptrs,  &main_fn_count, &sdk_fn_count};
++                                    main_fn_ptrs, sdk_fn_ptrs,  &main_fn_count, &sdk_fn_count,
++                                    subsdk0_fn_addrs, subsdk0_fn_ptrs, &subsdk0_fn_count};
+     return &t;
+ }
+diff --git a/tools/gen.py b/tools/gen.py
+index dcc1e65..cb48af6 100644
+--- a/tools/gen.py
++++ b/tools/gen.py
+@@ -5,6 +5,7 @@ Usage: gen.py <name> <nso> <base> <outdir> [--hle hle_symbols.txt] [--chunk N] [
+ --simd: FP/SIMD/CRC32 as AArch64 inline asm (default on arm64 hosts) or portable C (default elsewhere).
+ """
+ import argparse
++import hashlib
+ import bisect
+ import os
+ import platform
+@@ -53,6 +54,11 @@ def sanitize(sym):
+ class Module:
+     def __init__(self, name, path, base, simd='asm'):
+         self.name = name
++        expected = {'main': 'e84a90d551fed0824b4b74933b9c6d043c458521363a7cea58b2faca1822dc9e', 'sdk': '1d187f29784cd0af46e9e123fc2a62c77b3b07c5a39c8633d90d6c80de64e4ad', 'subsdk0': '767c35bcd7d23e78f9063c69b638290b8b83f91e839beb10799e6576960179b1'}
++        with open(path, "rb") as source:
++            digest = hashlib.file_digest(source, "sha256").hexdigest()
++        if name not in expected or digest != expected[name]:
++            raise ValueError("Expected original TOTK 1.4.3 module: " + name)
+         self.nso = Nso(path)
+         self.patches = patches_for(self.nso.build_id)  # (tools/patches.py: this build's, by its build id)
+         self.base = base
+@@ -517,7 +523,7 @@ class Module:
+             out.append('    __attribute__((musttail)) return rt_dispatch(c);')
+         out.append('}')
+         if lifter.DYN_BASE and any(GB_USE.search(l) for l in out):
+-            out.insert(1, '    const uint64_t GB = botwgame_gb;')
++            out.insert(1, '    const uint64_t GB = totkgame_gb;')
+         self._refs = refs
+         return out
+ 
+@@ -667,7 +673,7 @@ def generate(name, nso, base, outdir, opts):
+         path = os.path.join(outdir, f'{name}_{nchunks:03d}.c')
+         text = ['#include "cpu.h"\n' + ('#include "simd.h"\n' if m.lifter.sc else '')]
+         if opts.dyn_base:
+-            text += ['extern __attribute__((visibility("hidden"))) uint64_t botwgame_gb;\n']
++            text += ['extern __attribute__((visibility("hidden"))) uint64_t totkgame_gb;\n']
+         if any('rt_setjmp_slot(' in l for l in body):
+             text += ['#include <setjmp.h>\njmp_buf *rt_setjmp_slot(Cpu *c, uint64_t gbuf);\n']
+         text += [f'void {fname(r)}(Cpu *c);\n' for r in sorted(refs)]
+@@ -696,9 +702,9 @@ def generate(name, nso, base, outdir, opts):
+         f.write(f'const uint64_t {name}_fn_count = {len(order)};\n')
+         if opts.dyn_base:  # (in each module's table, weak: main and sdk share one)
+             f.write("// the guest window's start (--dyn-base): the runtime sets it before any game code runs\n")
+-            f.write(f'__attribute__((weak, visibility("hidden"))) uint64_t botwgame_gb = {hx(CANON)};\n')
+-            f.write('__attribute__((weak, visibility("default"))) void botwgame_set_guest_base(uint64_t gb) '
+-                    '{ botwgame_gb = gb; }\n')
++            f.write(f'__attribute__((weak, visibility("hidden"))) uint64_t totkgame_gb = {hx(CANON)};\n')
++            f.write('__attribute__((weak, visibility("default"))) void totkgame_set_guest_base(uint64_t gb) '
++                    '{ totkgame_gb = gb; }\n')
+         write_if_changed(os.path.join(outdir, f'{name}_table.c'), f.getvalue())
+     print(f'{name}: wrote {nchunks} chunks, {time.time() - t0:.0f}s total', file=sys.stderr)
+ 
+diff --git a/tools/lifter.py b/tools/lifter.py
+index e31020a..ed5446f 100644
+--- a/tools/lifter.py
++++ b/tools/lifter.py
+@@ -75,7 +75,7 @@ def hx(v):
+ # Android (gen.py --dyn-base): the guest window starts wherever the process has room (android/common/guest_window.h)
+ # instead of at CANON. Addresses the code derives from its own pc (ADR / ADRP, literal loads, return addresses, branch
+ # and dispatch targets) are then emitted as GB + offset, GB being the window's actual start (a local of every function
+-# that uses it, from botwgame_gb). Off, the output is exactly what it was.
++# that uses it, from totkgame_gb). Off, the output is exactly what it was.
+ CANON = 0x7000000000    # GUEST_LO (runtime/rt.h)
+ WINDOW = 0x320000000    # GUEST_HI - GUEST_LO
+ DYN_BASE = False
+diff --git a/tools/patches.py b/tools/patches.py
+index ca14739..cdab139 100644
+--- a/tools/patches.py
++++ b/tools/patches.py
+@@ -1,139 +1,3 @@
+-"""Per-instruction replacements applied by gen.py (guest address -> function(gen, addr) returning C code).
+-
+-Each entry replaces the one instruction at that address of `main` (canonical address, 0x7000000000 + offset) with the C
+-the function returns; gen.py rebases the addresses in it for --dyn-base. Check the instruction word first (an assert),
+-so a wrong build fails here instead of patching the wrong code. Example, from LAS Recomp's widescreen: a camera's
+-`ldr sN, [xM, #imm]` of the 16:9 aspect literal, replaced by a call into the runtime:
+-
+-    def _aspect_load(gen, a):
+-        w = struct.unpack_from('<I', gen.nso.image, a - gen.base)[0]
+-        assert (w & 0xffc00000) == 0xbd400000, hex(w)  # ldr s, [x, #imm]
+-        rt = w & 31
+-        return (f'{{ extern float rt_aspect_site(int); float f = rt_aspect_site(0); '
+-                f'c->v[{rt}] = 0; memcpy(&c->v[{rt}], &f, 4); }}  /* {a:#x}: ldr s{rt}, =16/9 */')
+-
+-    PATCHES[0x7000xxxxxx] = _aspect_load
+-
+-BOTW v1.0.0 (the code addresses are that build's; docs/BOTW-PORT.md):
+-- 0x70010c1aa0: act::ClusteredRenderer's teardown (f_70010c1a04) calls the virtual destroy of its display-list heap
+-  at this+0xc60 without a null check. Its setup (f_70010c084c) sets the "created" flag even when that 7 MB heap
+-  could not be made - here OpenWorldStage runs ~13 MB short and it never is - so a reload (dying, loading a save)
+-  crashed. A null heap now skips the destroy (the field and the flag are cleared as before).
+-"""
+-import struct
+-
+-PATCHES = {}      # v1.0.0 (main build 2094f152...)
+-PATCHES_160 = {}  # v1.6.0 (main build 8e9978d5...): the same fixes at that build's addresses
+-PATCHES_182 = {}  # v1.8.2 (main build de0b6ac4...)
+-PATCHES_190 = {}  # v1.9.0 (main build cd57b23f...)
+-BUILD_1_0_0 = '2094f152836683a3632c6153fd84ab80'
+-BUILD_1_6_0 = '8e9978d50bdd20b4c8395a106c27ffde'
+-BUILD_1_8_2 = 'de0b6ac4efc1dda7f80f6d7598ec7a7d'
+-BUILD_1_9_0 = 'cd57b23fa4bbad65803d9788c01821ee'
+-
+-
+-def _clustered_dl_heap_null(gen, a):
+-    w = struct.unpack_from('<I', gen.nso.image, a - gen.base)[0]
+-    assert w == 0xf9400008, hex(w)  # ldr x8, [x0]
+-    return ('if (c->x[0] == 0) { c->x[21] = c->x[20] + 0xc60ull; goto L_70010c1ad8; }  /* (tools/patches.py) */ '
+-            '{ uint64_t ea = c->x[0] + 0x0ull; uint64_t v = LD64(ea); c->x[8] = (uint64_t)(v); }')
+-
+-
+-PATCHES[0x70010c1aa0] = _clustered_dl_heap_null
+-
+-
+-# - 0x7000c4f4d4: sead's frame loop (f_7000c4f430) picks the present interval from the last frame's duration
+-#   (this+0x240, ticks): floor(vsyncs) + 1, or + 2 past a 0.9 fraction, never under 2. A frame over ~1.9 vsyncs takes it
+-#   to 20 fps (interval 3), where our GPU's clocks settle low and it stays. The menu's fixed frame rate (Video: Frame
+-#   rate 30 / 60) caps the duration read here (rt_frame_ticks), so the game itself keeps 2 - its state matches what is
+-#   presented; a frame that doesn't fit plays slightly slower. Auto: the game's own choice.
+-def _frame_ticks(gen, a):
+-    w = struct.unpack_from('<I', gen.nso.image, a - gen.base)[0]
+-    assert w == 0xf9412269, hex(w)  # ldr x9, [x19, #0x240]
+-    return ('{ extern int64_t rt_frame_ticks(int64_t); uint64_t ea = c->x[19] + 0x240ull; '
+-            'c->x[9] = (uint64_t)rt_frame_ticks((int64_t)LD64(ea)); }  /* (tools/patches.py) */')
+-
+-
+-PATCHES[0x7000c4f4d4] = _frame_ticks
+-
+-
+-# v1.6.0 (found by the same code: the instructions around each 1.0.0 site; its structs moved by a few bytes)
+-# - 0x7001861440: act::ClusteredRenderer's teardown - here without the "created" check of 1.0.0: it reads the
+-#   display-list heap at this+0xbf0 and calls its virtual destroy unconditionally; a null heap now goes on to the
+-#   flags' update (w8 = this+0xc9c, as the destroy's two paths load it) and the field's clearing at 0x7001861470.
+-def _clustered_dl_heap_null_160(gen, a):
+-    w = struct.unpack_from('<I', gen.nso.image, a - gen.base)[0]
+-    assert w == 0xf9400008, hex(w)  # ldr x8, [x0]
+-    return ('if (c->x[0] == 0) { uint64_t ea = c->x[20] + 0xc9cull; c->x[8] = (uint64_t)(uint32_t)LD32(ea); '
+-            'goto L_7001861470; }  /* (tools/patches.py) */ '
+-            '{ uint64_t ea = c->x[0] + 0x0ull; uint64_t v = LD64(ea); c->x[8] = (uint64_t)(v); }')
+-
+-
+-PATCHES_160[0x7001861440] = _clustered_dl_heap_null_160
+-
+-
+-# - 0x700161495c: sead's frame loop, the last frame's duration at this+0x248 (1.0.0: +0x240, into x9)
+-def _frame_ticks_160(gen, a):
+-    w = struct.unpack_from('<I', gen.nso.image, a - gen.base)[0]
+-    assert w == 0xf9412668, hex(w)  # ldr x8, [x19, #0x248]
+-    return ('{ extern int64_t rt_frame_ticks(int64_t); uint64_t ea = c->x[19] + 0x248ull; '
+-            'c->x[8] = (uint64_t)rt_frame_ticks((int64_t)LD64(ea)); }  /* (tools/patches.py) */')
+-
+-
+-PATCHES_160[0x700161495c] = _frame_ticks_160
+-
+-
+-# v1.8.2, frame rate (runtime/hle/framepace.c; SavageWindRecomp's patches, MIT): the runtime paces the frames at the
+-# present and sets the game's clock. The frame loop's vsync wait (sead framework, 0x7000d811fc; only the first frames
+-# after start-up come here) is skipped (the game's own runs with LARECOMP_FRAMEPACE=0). ksys::VFR::updateInterval
+-# (x19 = VFR) has just set the interval ratio the game's time step comes from: the runtime puts the frame's real length
+-# there, before the time multipliers and the deltas are worked out from it.
+-def _frame_wait_182(gen, a):
+-    w = struct.unpack_from('<I', gen.nso.image, a - gen.base)[0]
+-    assert w == 0xa9bd7bfd, hex(w)  # stp x29, x30, [sp, #-0x30]!
+-    return ('{ extern int rt_frame_wait(void); if (rt_frame_wait()) return; '
+-            'uint64_t ea = c->sp - 0x30; ST64(ea, c->x[29]); ST64(ea + 8, c->x[30]); c->sp = ea; }'
+-            f'  /* {a:#x}: stp x29, x30, [sp, #-0x30]! (frame wait; tools/patches.py) */')
+-
+-
+-def _vfr_ratio_182(gen, a):
+-    w = struct.unpack_from('<I', gen.nso.image, a - gen.base)[0]
+-    assert w == 0xb9407a68, hex(w)  # ldr w8, [x19, #0x78]
+-    return ('{ extern void rt_vfr_update(uint64_t); rt_vfr_update(c->x[19]); c->x[8] = LD32(c->x[19] + 0x78); }'
+-            f'  /* {a:#x}: ldr w8, [x19, #0x78] (VFR: interval ratio; tools/patches.py) */')
+-
+-
+-# sead::PerspectiveProjection::doUpdateMatrix (x0 = the projection; the vtable at 0x7001ba4438, entry 11): before it
+-# reads near, far, tan and aspect, the runtime widens a 16:9 aspect to the output's shape (runtime/hle/widescreen.c
+-# rt_persp_update: the main camera, whose aspect the game sets back to 16:9 before each rebuild).
+-def _persp_matrix_182(gen, a):
+-    w = struct.unpack_from('<I', gen.nso.image, a - gen.base)[0]
+-    assert w == 0xbd409800, hex(w)  # ldr s0, [x0, #0x98]
+-    return ('{ extern void rt_persp_update(uint64_t); rt_persp_update(c->x[0]); c->v[0] = LD32(c->x[0] + 0x98); }'
+-            f'  /* {a:#x}: ldr s0, [x0, #0x98] (projection matrix: widescreen; tools/patches.py) */')
+-
+-
+-# sead::PerspectiveProjection::getAspect (vtable entry 7): the widened aspect too (runtime/hle/widescreen.c
+-# rt_persp_aspect), so the code asking for it agrees with the matrix.
+-def _persp_get_aspect_182(gen, a):
+-    w = struct.unpack_from('<I', gen.nso.image, a - gen.base)[0]
+-    assert w == 0xbd40b000, hex(w)  # ldr s0, [x0, #0xb0]
+-    return ('{ extern uint32_t rt_persp_aspect(uint64_t); c->v[0] = rt_persp_aspect(c->x[0]); }'
+-            f'  /* {a:#x}: ldr s0, [x0, #0xb0] (projection aspect: widescreen; tools/patches.py) */')
+-
+-
+-PATCHES_182[0x7000d811fc] = _frame_wait_182
+-PATCHES_182[0x70014092f4] = _vfr_ratio_182
+-PATCHES_182[0x7000da13f4] = _persp_matrix_182
+-PATCHES_182[0x7000da13d8] = _persp_get_aspect_182
+-
+-# v1.9.0: the same code at other addresses (tools/port_addrs.py, from 1.8.2's; the words checked as above)
+-PATCHES_190[0x7000e9487c] = _frame_wait_182
+-PATCHES_190[0x700151d494] = _vfr_ratio_182
+-PATCHES_190[0x7000eb4a44] = _persp_matrix_182
+-PATCHES_190[0x7000eb4a28] = _persp_get_aspect_182
+-
+-
++"""TOTK 1.4.3: no game-specific instruction patches have been verified yet."""
+ def patches_for(build_id):
+-    """The patches for a module, by its build id (sdk and anything unknown: none)."""
+-    return {BUILD_1_0_0: PATCHES, BUILD_1_6_0: PATCHES_160, BUILD_1_8_2: PATCHES_182, BUILD_1_9_0: PATCHES_190}.get(build_id[:32], {})
++    return {}

@@ -1,11 +1,14 @@
 # TOTK Recomp · Android
 
 Projeto de port de **The Legend of Zelda: Tears of the Kingdom 1.4.3** para Android ARM64,
-partindo da família LAS Recomp. **Ainda não recompila nem executa TOTK.**
+partindo da família LAS Recomp. **Gera código C experimental; ainda não executa TOTK.**
 
 A primeira entrega é um APK de diagnóstico para conferir os arquivos do jogo no próprio
 celular. O motor de BOTW está disponível como referência de desenvolvimento, fixado em
-um commit; ele ainda não foi adaptado para carregar TOTK.
+um commit. Um overlay experimental já carrega os três módulos e gera C; boot e gameplay não foram validados.
+
+Para preparar o runtime experimental e repetir a geração local, veja [docs/PORT.md](docs/PORT.md).
+Os arquivos do jogo e o código gerado ficam apenas na máquina de quem compila.
 
 ## Usar no celular
 

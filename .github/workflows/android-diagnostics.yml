@@ -12,6 +12,10 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Verify experimental runtime patch applies
+        run: python3 tools/prepare_runtime.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
