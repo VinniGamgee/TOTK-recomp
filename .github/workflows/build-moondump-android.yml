@@ -35,6 +35,8 @@ jobs:
           set -euxo pipefail
           git clone --depth 1 https://github.com/SciresM/hactool.git build-hactool
           python3 scripts/patch_hactool.py build-hactool/utils.c
+          # Android NDK keeps FILE opaque; replace upstream's non-null sentinel pointer arithmetic.
+          sed -i 's/nca_ctx.tool_ctx->base_file++;/nca_ctx.tool_ctx->base_file = (FILE *)1;/' build-hactool/main.c
           mkdir -p app/src/main/assets app/src/main/jniLibs/arm64-v8a
           cp build-hactool/LICENSE app/src/main/assets/LICENSE-hactool.txt
           cp build-hactool/mbedtls/LICENSE app/src/main/assets/LICENSE-mbedtls.txt
