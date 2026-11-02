@@ -15,8 +15,8 @@ if old not in s:
     raise SystemExit("Expected key-copy code not found. Refusing to patch unexpected source.")
 s=s.replace(old,new)
 # Hactool may otherwise echo an invalid key value in its stderr; redact prior to logging.
-original='''        return value.replaceAll("(?i)\\b[0-9a-f]{32,}\\b","[chave ocultada]");'''
-replacement='''        return value.replaceAll("(?i)Key \\([^\\)]*\\) must be [0-9]+ hex digits!", "Formato de chave invalido!")
+original=r'''        return value.replaceAll("(?i)\\b[0-9a-f]{32,}\\b","[chave ocultada]");'''
+replacement=r'''        return value.replaceAll("(?i)Key \\([^\\)]*\\) must be [0-9]+ hex digits!", "Formato de chave invalido!")
                 .replaceAll("(?i)\\b[0-9a-f]{8,}\\b", "[chave ocultada]");'''
 if original not in s:
     raise SystemExit("Expected redaction code not found. Refusing to patch unexpected source.")
