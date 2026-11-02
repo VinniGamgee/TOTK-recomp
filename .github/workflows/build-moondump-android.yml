@@ -1,0 +1,60 @@
+name: Build MoonDump Android APK (ARM64)
+on:
+  push:
+    branches:
+      - moondump/android-build
+    paths:
+      - 'tools/moondump-android/**'
+      - '.github/workflows/build-moondump-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unpack MoonDump source
+        run: |
+          mkdir -p tools/moondump-android/project
+          tar -xJf tools/moondump-android/source.tar.xz -C tools/moondump-android/project
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android build tools
+        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - name: Compile Hactool ARM64 from original ISC source
+        working-directory: tools/moondump-android/project
+        run: |
+          set -euxo pipefail
+          git clone --depth 1 https://github.com/SciresM/hactool.git build-hactool
+          python3 scripts/patch_hactool.py build-hactool/utils.c
+          mkdir -p app/src/main/assets app/src/main/jniLibs/arm64-v8a
+          cp build-hactool/LICENSE app/src/main/assets/LICENSE-hactool.txt
+          cp build-hactool/mbedtls/LICENSE app/src/main/assets/LICENSE-mbedtls.txt
+          TOOLCHAIN="$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          cat > build-hactool/config.mk <<EOF
+          CC = $TOOLCHAIN/aarch64-linux-android30-clang
+          AR = $TOOLCHAIN/llvm-ar
+          RANLIB = $TOOLCHAIN/llvm-ranlib
+          CFLAGS = -O2 -Wall -std=gnu11 -fPIE -D_FILE_OFFSET_BITS=64
+          LDFLAGS = -pie -lmbedtls -lmbedx509 -lmbedcrypto
+          EOF
+          make -C build-hactool -j2 CC="$TOOLCHAIN/aarch64-linux-android30-clang" AR="$TOOLCHAIN/llvm-ar" RANLIB="$TOOLCHAIN/llvm-ranlib"
+          cp build-hactool/hactool app/src/main/jniLibs/arm64-v8a/libmoondump_core.so
+          file app/src/main/jniLibs/arm64-v8a/libmoondump_core.so
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10'
+      - name: Assemble Android debug APK
+        working-directory: tools/moondump-android/project
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MoonDump-Android-ARM64-debug-APK
+          path: tools/moondump-android/project/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
