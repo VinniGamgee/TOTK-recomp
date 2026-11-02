@@ -20,6 +20,10 @@ jobs:
         run: |
           mkdir -p tools/moondump-android/project
           tar -xJf tools/moondump-android/source.tar.xz -C tools/moondump-android/project
+      - name: Patch key parsing and check source
+        run: |
+          cp tools/moondump-android/KeyNormalizer.java tools/moondump-android/project/app/src/main/java/dev/moonwitch/moondump/KeyNormalizer.java
+          python3 tools/moondump-android/patch-key-validation.py tools/moondump-android/project
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
